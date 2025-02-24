@@ -33,7 +33,7 @@ ordem_meses = [
     "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"
 ]
 
-# Reordenar a tabela geral de compras mensais (pode usar fill_value=0 se quiser preencher vazios)
+# Reordenar a tabela geral de compras mensais
 if compras_por_mes is not None:
     compras_por_mes = compras_por_mes.reindex(ordem_meses, fill_value=0)
 
@@ -64,7 +64,7 @@ st.subheader("📅 Comparação de Compras Mensais (2022-2024)")
 fig_compras_mes = px.line(
     compras_por_mes,
     x=compras_por_mes.index,
-    y=[2022, 2023, 2024],  # Ajuste conforme os anos desejados
+    y=[2022, 2023, 2024],  # Ajuste conforme os anos disponíveis
     title="Comparação Mensal de Compras",
     labels={"index": "Mês", "value": "Total Comprado (R$)", "variable": "Ano"},
     markers=True
@@ -72,22 +72,26 @@ fig_compras_mes = px.line(
 st.plotly_chart(fig_compras_mes)
 
 # ----------------------------------------------------------
-# SEÇÃO 3: DETALHAMENTO POR FORNECEDOR E LOJA (Pivot + Total)
+# SEÇÃO 3: DETALHAMENTO POR FORNECEDOR E LOJAS (Pivot + Total)
 # ----------------------------------------------------------
-st.subheader("📋 Detalhamento por Fornecedor e Loja")
+st.subheader("📋 Detalhamento por Fornecedor e Lojas")
 
 # 3.1 Selecionar Fornecedor
 fornecedores_unicos = df_filtrado["Razão Social"].unique()
 fornecedor_selecionado = st.selectbox("Selecione um fornecedor:", fornecedores_unicos)
 
-# 3.2 Selecionar Loja
+# 3.2 Selecionar múltiplas Lojas
 lojas_unicas = df_filtrado["Loja"].unique()
-loja_selecionada = st.selectbox("Selecione a loja:", lojas_unicas)
+lojas_selecionadas = st.multiselect(
+    "Selecione uma ou mais lojas:",
+    options=lojas_unicas,
+    default=lojas_unicas  # Se quiser começar mostrando todas
+)
 
-# 3.3 Filtrar dados
+# 3.3 Filtrar dados (Fornecedor + Lojas selecionadas)
 df_fornecedor_loja = df_filtrado[
     (df_filtrado["Razão Social"] == fornecedor_selecionado)
-    & (df_filtrado["Loja"] == loja_selecionada)
+    & (df_filtrado["Loja"].isin(lojas_selecionadas))
 ]
 
 # 3.4 Criar pivot: Soma de "Valor Nota" por MÊS e ANO
@@ -100,32 +104,29 @@ resumo_pivot = (
     .reindex(ordem_meses, fill_value=0)  # Ordenar meses
 )
 
-# 3.5 Adicionar coluna de TOTAL (soma das colunas)
+# 3.5 Adicionar coluna e linha de TOTAL
 if not resumo_pivot.empty:
     resumo_pivot["TOTAL"] = resumo_pivot.sum(axis=1)
-
-    # Adicionar linha de TOTAL (soma das linhas)
     resumo_pivot.loc["TOTAL"] = resumo_pivot.sum(numeric_only=True)
 
-# Exibir a tabela final (meses em linhas, anos em colunas + TOTAL)
-st.write(f"**Resumo de Compras (Fornecedor: {fornecedor_selecionado} | Loja: {loja_selecionada})**")
+# Exibir a tabela final
+st.write(f"**Resumo de Compras (Fornecedor: {fornecedor_selecionado} | Lojas: {lojas_selecionadas})**")
 if not resumo_pivot.empty:
     st.dataframe(resumo_pivot)
 else:
-    st.warning("Não há dados para este fornecedor e loja selecionados.")
+    st.warning("Não há dados para este fornecedor e as lojas selecionadas.")
 
 # 3.6 Gráfico (barras agrupadas) sem a linha/coluna 'TOTAL'
 if not resumo_pivot.empty:
-    # Remover linha 'TOTAL' antes de plotar
+    # Remover linha e coluna 'TOTAL' antes de plotar
     resumo_pivot_sem_total = resumo_pivot.drop(index="TOTAL", errors="ignore")
-    # Remover coluna 'TOTAL' antes de plotar
     if "TOTAL" in resumo_pivot_sem_total.columns:
         resumo_pivot_sem_total = resumo_pivot_sem_total.drop(columns="TOTAL")
 
-    # Converter pivot para formato longo (para Plotly)
+    # Converter pivot para formato longo
     resumo_reset = (
         resumo_pivot_sem_total
-        .reset_index()  # MÊS vira coluna
+        .reset_index()
         .melt(id_vars="MÊS", var_name="ANO", value_name="Total")
     )
 
@@ -135,7 +136,49 @@ if not resumo_pivot.empty:
         y="Total",
         color="ANO",
         barmode="group",
-        title="Resumo de Compras por Mês e Ano (Fornecedor + Loja)",
+        title="Resumo de Compras por Mês e Ano (Fornecedor + Lojas)",
         labels={"MÊS": "Mês", "Total": "Total Comprado (R$)", "ANO": "Ano"}
     )
     st.plotly_chart(fig_resumo_mes_ano)
+
+# --------------------------------
+# SEÇÃO 4: RANKING DE FORNECEDORES
+# --------------------------------
+st.subheader("🏆 Ranking de Fornecedores por Ano (≥ 0,3% do total)")
+
+# 4.1 Selecionar o ano para o ranking
+anos_disponiveis = sorted(df_filtrado["ANO"].unique())
+ano_selecionado = st.selectbox("Selecione o ano para Ranking:", anos_disponiveis)
+
+# 4.2 Filtrar somente as notas do ano selecionado
+df_ano = df_filtrado[df_filtrado["ANO"] == ano_selecionado]
+
+# 4.3 Agrupar por fornecedor e calcular valor total e porcentagem
+ranking = (
+    df_ano
+    .groupby(["Fornecedor", "Razão Social"])["Valor Nota"]
+    .sum()
+    .reset_index()
+)
+
+valor_total_ano = ranking["Valor Nota"].sum()
+ranking["Porcentagem"] = (ranking["Valor Nota"] / valor_total_ano) * 100
+
+# 4.4 Filtrar somente quem tem ≥ 1%
+ranking = ranking[ranking["Porcentagem"] >= 0.3]
+
+# Ordenar por maior Valor Nota
+ranking = ranking.sort_values(by="Valor Nota", ascending=False)
+
+# Criar coluna de Rank (1 = maior valor)
+ranking["Rank"] = ranking["Valor Nota"].rank(method="first", ascending=False).astype(int)
+
+# Opcional: arredondar porcentagem
+ranking["Porcentagem"] = ranking["Porcentagem"].round(2)
+
+# Reordenar colunas para exibir
+ranking = ranking[["Rank", "Fornecedor", "Razão Social", "Valor Nota", "Porcentagem"]]
+
+# 4.5 Exibir tabela
+st.write(f"Fornecedores com pelo menos 1% das compras em {ano_selecionado}")
+st.dataframe(ranking)

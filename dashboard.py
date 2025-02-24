@@ -161,7 +161,7 @@ valor_total_ano = ranking["Valor Nota"].sum()
 ranking["Porcentagem"] = (ranking["Valor Nota"] / valor_total_ano) * 100
 
 # Filtrar somente quem tem ≥ 0,3%
-ranking = ranking[ranking["Porcentagem"] >= 0.0]
+ranking = ranking[ranking["Porcentagem"] > 0.0]
 
 # Ordenar por maior Valor Nota
 ranking = ranking.sort_values(by="Valor Nota", ascending=False)
@@ -176,5 +176,5 @@ ranking["Porcentagem"] = ranking["Porcentagem"].round(2)
 ranking = ranking[["Rank", "Fornecedor", "Razão Social", "Valor Nota", "Porcentagem"]]
 
 # Exibir tabela
-st.write("Fornecedores com pelo menos 0,3% das compras em 2024")
+st.write("Fornecedores com pelo mais de  0,0% das compras em 2024")
 st.dataframe(ranking)

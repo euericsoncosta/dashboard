@@ -147,7 +147,7 @@ if not resumo_pivot.empty:
 # --------------------------------
 # SEÇÃO 4: RANKING DE FORNECEDORES
 # --------------------------------
-st.subheader("🏆 Ranking de Fornecedores em 2024 (≥ 0,3% do total)")
+st.subheader("🏆 Ranking de Fornecedores em 2024")
 
 # Para ranking, utilizamos apenas os dados de 2024 (df_filtrado já é filtrado)
 ranking = (
@@ -161,7 +161,7 @@ valor_total_ano = ranking["Valor Nota"].sum()
 ranking["Porcentagem"] = (ranking["Valor Nota"] / valor_total_ano) * 100
 
 # Filtrar somente quem tem ≥ 0,3%
-ranking = ranking[ranking["Porcentagem"] >= 0.3]
+ranking = ranking[ranking["Porcentagem"] >= 0.0]
 
 # Ordenar por maior Valor Nota
 ranking = ranking.sort_values(by="Valor Nota", ascending=False)
